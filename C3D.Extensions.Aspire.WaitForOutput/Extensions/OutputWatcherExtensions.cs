@@ -4,30 +4,34 @@ using C3D.Extensions.Aspire.OutputWatcher.Annotations;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Options;
 using System.Text.RegularExpressions;
 
 namespace Aspire.Hosting;
 
 public static class OutputWatcherExtensions
 {
-    public static ConfigureNamedOptions<HostOptions> ServicesStartConcurrently =>
-        new(Options.DefaultName, options =>
-            // Some aspire services appear to block until the host and all services are fully started
-            options.ServicesStartConcurrently = true);
-
-    public static IServiceCollection AddResourceOutputWatcher(this IServiceCollection services)
+    private static IServiceCollection InsertHostedService<TService>(this IServiceCollection services, 
+        int index = 0)
+        where TService : class, IHostedService
     {
-        //services.AddOptions<HostOptions>()
-        //    .Configure(options=>
-        //    {
-        //        options.ServicesStartConcurrently = true;
-        //    });
-        // We do it this way to avoid multiple registrations of the same configuration
-        services.AddSingleton<IConfigureOptions<HostOptions>>(ServicesStartConcurrently);
-        services.AddHostedService<ResourceOutputWatcherService>();
-        return services;
+        ArgumentOutOfRangeException.ThrowIfNegative(index, nameof(index));
+
+        var hostedServices = services.Where(s => 
+            s.ServiceType == typeof(IHostedService) && 
+            s.ServiceKey is null &&
+            s.ImplementationType != typeof(TService)).ToList();
+        
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(index, hostedServices.Count, nameof(index));
+
+        hostedServices.Insert(index, ServiceDescriptor.Singleton<IHostedService, TService>());
+
+        return services
+            .RemoveAll<IHostedService>()   // remove all hosted services
+            .Add(hostedServices);          // re-add the hosted services with the inserted service
     }
+
+    public static IServiceCollection AddResourceOutputWatcher(this IServiceCollection services) =>
+        services.InsertHostedService<ResourceOutputWatcherService>();
 
     public static OutputWatcherBuilder<TResource, OutputWatcherAnnotation> WithOutputWatcher<TResource>(this
         IResourceBuilder<TResource> resourceBuilder,
