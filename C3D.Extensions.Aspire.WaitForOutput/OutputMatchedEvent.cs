@@ -3,7 +3,7 @@ using Aspire.Hosting.Eventing;
 
 namespace C3D.Extensions.Aspire.OutputWatcher;
 
-public class OutputMatchedEvent : IDistributedApplicationEvent
+public class OutputMatchedEvent : IDistributedApplicationResourceEvent
 {
     public OutputMatchedEvent(IResource resource, IServiceProvider serviceProvider, string message, IReadOnlyDictionary<string,object> properties)
     {
